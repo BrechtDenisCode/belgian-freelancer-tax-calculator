@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Belgian Freelancer Tax Estimator</title>
+    <style>
+      :root {
+        --ink: #16202c;
+        --muted: #5b6875;
+        --line: #dfe4ea;
+        --accent: #14509b;
+        --warn-bg: #fff6e0;
+        --warn-line: #e6c66a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+        max-width: 42rem;
+        font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--ink);
+      }
+      h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+      .sub { color: var(--muted); margin: 0 0 1.5rem; }
+      .disclaimer {
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-line);
+        border-radius: 6px;
+        padding: .75rem 1rem;
+        font-size: .9rem;
+        margin-bottom: 1.5rem;
+      }
+      form { border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; }
+      label { display: block; font-weight: 600; margin-bottom: .3rem; }
+      .hint { font-weight: 400; color: var(--muted); font-size: .85rem; }
+      input[type="number"], select {
+        width: 100%;
+        padding: .6rem .7rem;
+        font-size: 1rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+      .field { margin-bottom: 1.1rem; }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: 0;
+        border-radius: 6px;
+        padding: .7rem 1.4rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #result { margin-top: 1.75rem; }
+      #result[hidden] { display: none; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: .5rem .2rem; border-bottom: 1px solid var(--line); }
+      td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      tr.total td { font-weight: 700; border-bottom: 2px solid var(--ink); }
+      .note { color: var(--muted); font-size: .85rem; }
+      .error { color: #a32020; font-weight: 600; }
+      details { margin-top: 2rem; font-size: .9rem; color: var(--muted); }
+      details summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>Belgian Freelancer Tax Estimator</h1>
+    <p class="sub">
+      Roughly what will you owe in social contributions and personal income tax
+      on your freelance income?
+    </p>
+
+    <p class="disclaimer">
+      <strong>This is an ESTIMATE, not tax advice.</strong> It uses simplified,
+      approximate rates that may be out of date, and ignores your family
+      situation, deductions, VAT and prepayments. Check with your social
+      insurance fund or an accountant before making decisions.
+    </p>
+
+    <form id="calc">
+      <div class="field">
+        <label for="netIncome">
+          Annual freelance income (EUR)
+          <span class="hint">After professional expenses, before contributions and tax.</span>
+        </label>
+        <input id="netIncome" name="netIncome" type="number" min="0" step="100" value="40000" required />
+      </div>
+
+      <div class="field">
+        <label for="status">
+          Status
+          <span class="hint">Main occupation (hoofdberoep) or secondary (bijberoep).</span>
+        </label>
+        <select id="status" name="status">
+          <option value="hoofdberoep">Hoofdberoep / main occupation</option>
+          <option value="bijberoep">Bijberoep / secondary occupation</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="otherTaxableIncome">
+          Other taxable income this year (EUR)
+          <span class="hint">Your salary, if you freelance on the side. Leave at 0 if none.</span>
+        </label>
+        <input id="otherTaxableIncome" name="otherTaxableIncome" type="number" min="0" step="100" value="0" />
+      </div>
+
+      <button type="submit">Calculate estimate</button>
+      <p id="error" class="error" hidden></p>
+    </form>
+
+    <section id="result" hidden aria-live="polite">
+      <h2>Your estimate</h2>
+      <table>
+        <tbody>
+          <tr>
+            <td>Freelance income</td>
+            <td class="num" id="r-income"></td>
+          </tr>
+          <tr>
+            <td>Social contributions <span class="note" id="r-social-note"></span></td>
+            <td class="num" id="r-social"></td>
+          </tr>
+          <tr>
+            <td>Personal income tax <span class="note">(incl. municipal surcharge)</span></td>
+            <td class="num" id="r-tax"></td>
+          </tr>
+          <tr class="total">
+            <td>Total to set aside</td>
+            <td class="num" id="r-total"></td>
+          </tr>
+          <tr>
+            <td>Left over</td>
+            <td class="num" id="r-left"></td>
+          </tr>
+          <tr>
+            <td>Effective rate on freelance income</td>
+            <td class="num" id="r-rate"></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note" id="r-quarterly"></p>
+    </section>
+
+    <details>
+      <summary>Which rates does this use?</summary>
+      <p>
+        Social contributions: 20.5% on the income basis up to about
+        &euro;75,652, then 14.16% up to about &euro;111,491, nothing above that,
+        plus a 3.5% social insurance fund management fee. Hoofdberoep pays on a
+        minimum basis of about &euro;18,145 even when earning less; bijberoep
+        has no minimum and owes nothing below about &euro;1,865.
+      </p>
+      <p>
+        Income tax: 25% / 40% / 45% / 50% brackets at &euro;15,820, &euro;27,920
+        and &euro;48,320, a tax-free allowance of &euro;10,570 credited at the
+        bottom bracket, and a 7% municipal surcharge (this varies by
+        municipality). Social contributions are deducted before tax.
+      </p>
+      <p>
+        These figures are approximate and indexed yearly by RSVZ/INASTI and FOD
+        Financi&euml;n. They have not been verified against the current income
+        year &mdash; see the comments in <code>tax.js</code>.
+      </p>
+    </details>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

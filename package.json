@@ -1,0 +1,11 @@
+{
+  "name": "belgian-freelancer-tax-calculator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MVP estimator for Belgian freelancer social contributions and personal income tax. Estimate only, not tax advice.",
+  "scripts": {
+    "test": "node --test",
+    "start": "python -m http.server 8000"
+  }
+}
