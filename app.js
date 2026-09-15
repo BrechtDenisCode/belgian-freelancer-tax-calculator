@@ -1,5 +1,20 @@
 import { estimate } from './tax.js';
 
+const EVENTS_URL = 'https://bftc-events.bd-code-now.workers.dev';
+
+// Fire-and-forget: never let the beacon, or its absence, affect the calculator.
+function sendEvent(name) {
+  try {
+    fetch(EVENTS_URL + '/event', {
+      method: 'POST',
+      keepalive: true,
+      body: JSON.stringify({ event: name }),
+    }).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
+
 const euro = new Intl.NumberFormat('en-BE', {
   style: 'currency',
   currency: 'EUR',
@@ -13,9 +28,17 @@ const set = (id, text) => {
   document.querySelector(id).textContent = text;
 };
 
+sendEvent('page_view');
+let calculatorStartedSent = false;
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   errorBox.hidden = true;
+
+  if (!calculatorStartedSent) {
+    calculatorStartedSent = true;
+    sendEvent('calculator_started');
+  }
 
   const data = new FormData(form);
   const netIncome = Number(data.get('netIncome'));
@@ -25,10 +48,20 @@ form.addEventListener('submit', (event) => {
     errorBox.textContent = 'Please enter a freelance income of 0 or more.';
     errorBox.hidden = false;
     result.hidden = true;
+    sendEvent('calculation_error');
     return;
   }
 
-  const r = estimate({ netIncome, status: data.get('status'), otherTaxableIncome });
+  let r;
+  try {
+    r = estimate({ netIncome, status: data.get('status'), otherTaxableIncome });
+  } catch {
+    errorBox.textContent = 'Something went wrong computing your estimate.';
+    errorBox.hidden = false;
+    result.hidden = true;
+    sendEvent('calculation_error');
+    return;
+  }
 
   set('#r-income', euro.format(r.netIncome));
   set('#r-social', euro.format(r.socialContributions.total));
@@ -50,4 +83,5 @@ form.addEventListener('submit', (event) => {
   );
 
   result.hidden = false;
+  sendEvent('calculation_completed');
 });
