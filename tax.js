@@ -72,6 +72,7 @@ export const TAX = {
 };
 
 const round2 = (n) => Math.round(n * 100) / 100;
+const round4 = (n) => Math.round(n * 10000) / 10000;
 
 /** Progressive tax over a bracket table, applied from zero. */
 function applyBrackets(income, brackets) {
@@ -83,6 +84,23 @@ function applyBrackets(income, brackets) {
     floor = upTo;
   }
   return tax;
+}
+
+/** The bracket table social contributions are charged on, above the floor. */
+function socialBracketTable() {
+  return [
+    { upTo: SOCIAL.firstCeiling, rate: SOCIAL.rate },
+    { upTo: SOCIAL.secondCeiling, rate: SOCIAL.reducedRate },
+    { upTo: Infinity, rate: 0 },
+  ];
+}
+
+/** The rate a bracket table applies to the next euro above `amount`. */
+function bracketRateAt(amount, brackets) {
+  for (const { upTo, rate } of brackets) {
+    if (amount < upTo) return rate;
+  }
+  return brackets[brackets.length - 1].rate;
 }
 
 /**
@@ -104,11 +122,7 @@ export function calculateSocialContributions(netIncome, status = 'hoofdberoep') 
     status === 'hoofdberoep' && income < SOCIAL.minimumIncomeHoofdberoep;
   const basis = minimumApplied ? SOCIAL.minimumIncomeHoofdberoep : income;
 
-  const statutory = applyBrackets(basis, [
-    { upTo: SOCIAL.firstCeiling, rate: SOCIAL.rate },
-    { upTo: SOCIAL.secondCeiling, rate: SOCIAL.reducedRate },
-    { upTo: Infinity, rate: 0 },
-  ]);
+  const statutory = applyBrackets(basis, socialBracketTable());
   const managementFee = statutory * SOCIAL.managementFeeRate;
 
   return {
@@ -139,6 +153,43 @@ export function calculateIncomeTax(taxableIncome) {
     total: round2(base + municipal),
     _exact: base + municipal,
   };
+}
+
+/**
+ * The combined marginal rate (0-1) applied to the next euro of freelance
+ * income at a given `netIncome` level: the social contribution rate on that
+ * euro, plus income tax (with municipal surcharge) on what's left of it
+ * after the contribution is deducted as a professional cost.
+ *
+ * Below the hoofdberoep minimum income basis, or below the bijberoep
+ * exemption threshold, the next euro does not change contributions due, so
+ * the social share of the marginal rate is 0 in those ranges.
+ *
+ * @param {number} netIncome Annual professional income after expenses.
+ * @param {'hoofdberoep'|'bijberoep'} [status]
+ */
+export function effectiveMarginalRate(netIncome, status = 'hoofdberoep') {
+  if (!Number.isFinite(netIncome)) throw new TypeError('netIncome must be a number');
+  if (status !== 'hoofdberoep' && status !== 'bijberoep') {
+    throw new RangeError('status must be "hoofdberoep" or "bijberoep"');
+  }
+  const income = Math.max(0, netIncome);
+  const social = calculateSocialContributions(income, status);
+
+  const belowFloor =
+    social.minimumApplied ||
+    (status === 'bijberoep' && income < SOCIAL.exemptionThresholdBijberoep);
+  const socialMarginal = belowFloor
+    ? 0
+    : bracketRateAt(income, socialBracketTable()) * (1 + SOCIAL.managementFeeRate);
+
+  const taxableFreelanceIncome = Math.max(0, income - social._exact);
+  const taxMarginal =
+    taxableFreelanceIncome <= TAX.taxFreeAllowance
+      ? 0
+      : bracketRateAt(taxableFreelanceIncome, TAX.brackets) * (1 + TAX.municipalSurchargeRate);
+
+  return round4(socialMarginal + (1 - socialMarginal) * taxMarginal);
 }
 
 /**

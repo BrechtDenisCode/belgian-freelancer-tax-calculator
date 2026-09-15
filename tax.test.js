@@ -6,6 +6,7 @@ import {
   TAX,
   calculateSocialContributions,
   calculateIncomeTax,
+  effectiveMarginalRate,
   estimate,
 } from './tax.js';
 
@@ -122,6 +123,37 @@ test('income tax brackets are progressive at the boundaries', () => {
 
   // The tranche above 27920 is taxed at 45% (+7% surcharge), not 40%.
   closeTo(justAbove - justBelow, step * 0.45 * 1.07);
+});
+
+test('effectiveMarginalRate: low income under the minimum basis is 0', () => {
+  // At 5000, hoofdberoep still pays contributions on the 18144.98 floor, so
+  // the next euro doesn't change contributions, and what's left after the
+  // (fixed) contribution is deducted stays under the tax-free allowance too.
+  const rate = effectiveMarginalRate(5000, 'hoofdberoep');
+  closeTo(rate, 0, 0.0001);
+});
+
+test('effectiveMarginalRate: at the social first ceiling, the reduced social rate kicks in', () => {
+  // At exactly SOCIAL.firstCeiling, the next euro is charged at reducedRate
+  // (14.16%), and taxable freelance income after deduction (~59600.80)
+  // lands in the top 50% income tax bracket.
+  const rate = effectiveMarginalRate(SOCIAL.firstCeiling, 'hoofdberoep');
+  const expectedSocial = SOCIAL.reducedRate * (1 + SOCIAL.managementFeeRate);
+  const expectedTax = 0.5 * (1 + TAX.municipalSurchargeRate);
+  const expected = expectedSocial + (1 - expectedSocial) * expectedTax;
+  closeTo(rate, expected, 0.0001);
+});
+
+test('effectiveMarginalRate: high income above the social ceiling is pure top-bracket tax', () => {
+  // Above SOCIAL.secondCeiling, contributions are capped, so the next euro
+  // owes no social contribution at all - only income tax at the top bracket.
+  const rate = effectiveMarginalRate(300000, 'hoofdberoep');
+  closeTo(rate, 0.5 * (1 + TAX.municipalSurchargeRate), 0.0001);
+});
+
+test('effectiveMarginalRate rejects invalid input the same way estimate does', () => {
+  assert.throws(() => effectiveMarginalRate('lots'), TypeError);
+  assert.throws(() => effectiveMarginalRate(1000, 'student'), RangeError);
 });
 
 test('invalid input is rejected', () => {
