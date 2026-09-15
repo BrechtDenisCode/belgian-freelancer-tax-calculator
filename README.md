@@ -14,6 +14,7 @@ no analytics, no signup.
 | `tax.test.js`  | Tests for the calculation logic (`node --test`).           |
 | `index.html`   | The page: form, result table, disclaimer, rate explainer.  |
 | `app.js`       | Thin glue between the form and `tax.js`.                   |
+| `VERSION.txt`  | Marks the current build version.                           |
 
 ## Run
 
